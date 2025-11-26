@@ -9,330 +9,340 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- NEW: Add Chart.js for the pie chart -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- NEW: Chart.js for the session summary pie chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
     <div id="app-container" class="max-w-4xl mx-auto p-4 md:p-8 min-h-screen relative flex flex-col">
         
         <button id="settings-button" class="absolute top-6 left-6 md:top-8 md:left-10 z-50 p-2 rounded-full transition-all duration-300 hidden">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.096 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
         </button>
 
-        <button id="theme-toggle-button" class="absolute top-6 right-6 md:top-8 md:right-10 z-50 p-2 rounded-full transition-all duration-300">
-            <span id="theme-icon-sun" class="text-3xl" style="line-height: 1;">☼</span>
-            <svg id="theme-icon-moon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-        </button>
-
-        <img src="favicon.png" alt="Site Logo" id="header-logo" class="absolute top-6 md:top-8 z-50">
+        <!-- --- Main Content Views --- -->
         
-        <header class="mb-6 pt-12">
-            <h1 id="header-title" class="text-3xl text-center mb-6">Totally Not Quizlet</h1>
-            <nav class="flex justify-center p-2 space-x-1 md:space-x-2">
-                <button data-mode="flashcards" class="nav-button flex-1 rounded-md">Flashcards</button>
-                <button data-mode="learn" class="nav-button flex-1 rounded-md">Learn</button>
-                <button data-mode="match" class="nav-button flex-1 rounded-md">Match</button> 
-                <button data-mode="type" class="nav-button flex-1 rounded-md">Type</button>
-                <!-- NEW: Add Progress Tab -->
-                <button data-mode="progress" class="nav-button flex-1 rounded-md">Progress</button>
-                <button data-mode="create" class="nav-button flex-1 rounded-md">Create</button>
-                <button id="share-deck-button" class="flex-1 rounded-md hidden">Share Deck</button>
-            </nav>
-        </header>
+        <!-- Welcome View (Default) -->
+        <div id="empty-view" class="app-view flex-grow flex flex-col items-center justify-center text-center p-4">
+            <h1 class="text-3xl font-bold mb-4">Welcome to totallynotquizlet!</h1>
+            <p class="text-xl mb-8 text-color-text-secondary">Start by creating a new study set or loading an existing one.</p>
+            <button id="create-new-deck-button" class="main-action-button text-lg py-3 px-8 rounded-xl transition-all duration-300 transform hover:scale-[1.03] shadow-md hover:shadow-lg">
+                Create New Study Set
+            </button>
+        </div>
 
-        <main id="main-content" class="flex-grow">
+        <!-- Create/Edit Deck View -->
+        <div id="create-view" class="app-view flex-grow flex flex-col pt-4 pb-20 overflow-y-auto hidden">
+            <!-- Content for creating deck -->
+            <div class="deck-metadata-section mb-6 pb-4 border-b border-color-border">
+                <input type="text" id="deck-title-input" placeholder="Enter a Title for your study set (e.g., U.S. State Capitals)" class="text-2xl font-bold w-full p-2 bg-color-bg-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-color-primary transition-all duration-200" maxlength="100">
+                <p class="text-sm text-color-text-secondary mt-2">Maximum 100 characters.</p>
+            </div>
+            
+            <!-- Cards List -->
+            <div id="card-editor-list" class="space-y-3">
+                <!-- Card editor rows will be injected here -->
+            </div>
 
-            <div id="empty-deck-view" class="app-view text-center p-8 md:p-12 rounded-lg">
-                <h2 class="text-2xl font-semibold mb-4">Your deck is empty!</h2>
-                <p class="mb-6">Please create a new deck to get started.</p>
-                <button data-mode="create" class="nav-button main-action-button font-medium py-3 px-6 rounded-lg">
-                    Create a Deck
+            <!-- Add Card Button & Save Controls -->
+            <div class="sticky bottom-0 bg-color-bg py-4 z-40">
+                <button id="add-card-button" class="secondary-action-button w-full py-3 rounded-lg flex items-center justify-center mb-4 transition-all duration-300 transform hover:scale-[1.005]">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Add Card
+                </button>
+                <div class="flex space-x-3">
+                    <button id="save-deck-button" class="main-action-button flex-1 py-3 rounded-lg text-lg font-semibold transition-all duration-300 transform hover:scale-[1.01]">
+                        Save Study Set
+                    </button>
+                    <button id="cancel-create-button" class="secondary-action-button py-3 px-6 rounded-lg font-semibold transition-all duration-300">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deck Options View -->
+        <div id="options-view" class="app-view flex-grow flex flex-col items-center justify-center p-4 hidden">
+            <h1 id="deck-options-title" class="text-3xl font-bold mb-10 text-center"></h1>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-lg">
+                <button id="flashcards-button" class="mode-button bg-color-card-bg p-6 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] shadow-xl hover:shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-2 flex items-center"><span class="text-color-primary mr-3 text-3xl">🎴</span> Flashcards</h2>
+                    <p class="text-color-text-secondary">Simple review of terms and definitions.</p>
+                </button>
+                <button id="learn-button" class="mode-button bg-color-card-bg p-6 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] shadow-xl hover:shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-2 flex items-center"><span class="text-color-primary mr-3 text-3xl">🧠</span> Learn</h2>
+                    <p class="text-color-text-secondary">Spaced repetition to master your material.</p>
+                </button>
+                <button id="type-button" class="mode-button bg-color-card-bg p-6 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] shadow-xl hover:shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-2 flex items-center"><span class="text-color-primary mr-3 text-3xl">✍️</span> Type</h2>
+                    <p class="text-color-text-secondary">Practice typing out the correct answer.</p>
+                </button>
+                <button id="match-button" class="mode-button bg-color-card-bg p-6 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] shadow-xl hover:shadow-2xl">
+                    <h2 class="text-2xl font-bold mb-2 flex items-center"><span class="text-color-primary mr-3 text-3xl">⏱️</span> Match</h2>
+                    <p class="text-color-text-secondary">Race against the clock to match terms.</p>
                 </button>
             </div>
 
-            <div id="create-view" class="app-view">
-                <div id="create-form-container" class="space-y-6">
-                    <div>
-                        <input type="text" id="deck-title-input" class="w-full" placeholder="Enter a title, like &quot;Biology - Chapter 4&quot;">
-                        <label for="deck-title-input" class="create-label">TITLE</label>
-                    </div>
-                    <!-- MODIFIED: Wrapped toggles and new button in a flex container -->
-                    <div class="flex justify-between items-center">
-                        <div class="flex space-x-2">
-                            <button id="toggle-manual-button" class="create-toggle-button active">
-                                Manual Entry
-                            </button>
-                            <button id="toggle-paste-button" class="create-toggle-button">
-                                Import from Text
-                            </button>
-                        </div>
-                        <!-- NEW: Clear All Button -->
-                        <button id="clear-create-button" class="danger-action-button text-sm px-4 py-2">
-                            Clear All
-                        </button>
-                    </div>
-                    <div id="manual-input-section" class="space-y-4">
-                        <div id="card-editor-list" class="space-y-3">
-                        </div>
-                        <button id="add-card-button" class="w-full">
-                            + ADD CARD
-                        </button>
-                    </div>
-                    <div id="paste-input-section" class="hidden space-y-4">
-                        <p id="create-example-guide" class="text-sm p-3 rounded-md">
-                            Paste your terms and definitions here, separated by a comma. Put each new pair on a new line.
-                            <br>
-                            <strong>Example Format:</strong><br>
-                            Capital of France, Paris<br>
-                            2 + 2, 4
-                        </p>
-                        <textarea id="deck-input-area" class="w-full h-64 p-3 rounded-lg focus:outline-none" placeholder="Enter deck data here..."></textarea>
-                    </div>
-                    <button id="parse-deck-button" class="main-action-button mt-4 w-full font-medium py-3 px-6 rounded-lg">
-                        Create Deck
+            <button id="edit-deck-button" class="secondary-action-button mt-8 py-3 px-8 rounded-lg transition-all duration-300">
+                <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                Edit Deck
+            </button>
+            <button id="delete-deck-button" class="danger-action-button mt-4 py-2 px-6 rounded-lg transition-all duration-300">
+                Delete Deck
+            </button>
+        </div>
+
+        <!-- Flashcards View -->
+        <div id="flashcards-view" class="app-view flex-grow flex flex-col items-center justify-between p-4 hidden">
+            <!-- Content for Flashcards -->
+            <div class="w-full h-full flex flex-col items-center">
+                <p id="flashcard-progress" class="text-color-text-secondary mb-4 self-start"></p>
+                <div id="flashcard-card-container" class="relative w-full max-w-xl flex-grow flex items-center justify-center mb-8">
+                    <!-- Flashcard element will be injected here -->
+                </div>
+                <div class="flex space-x-4 mb-4">
+                    <button id="flashcard-flip-button" class="secondary-action-button text-lg py-3 px-8 rounded-xl transition-all duration-300">
+                        Flip Card
+                    </button>
+                    <button id="flashcard-next-button" class="main-action-button text-lg py-3 px-8 rounded-xl transition-all duration-300">
+                        Next Card
+                    </button>
+                </div>
+                <button id="flashcard-end-button" class="text-color-text-secondary hover:text-color-primary transition-colors duration-200 mb-4">
+                    End Session
+                </button>
+            </div>
+        </div>
+
+        <!-- Learn View -->
+        <div id="learn-view" class="app-view flex-grow flex flex-col items-center justify-between p-4 hidden">
+            <!-- Content for Learn Mode -->
+            <div id="learn-progress-container" class="w-full flex justify-between items-center mb-4">
+                <div id="learn-progress-bar-container" class="progress-bar-container flex-grow mr-4">
+                    <div id="learn-progress-bar" class="progress-bar"></div>
+                </div>
+                <p id="learn-progress-text" class="text-color-text-secondary"></p>
+            </div>
+            
+            <div id="learn-card-display" class="w-full max-w-xl p-6 rounded-xl bg-color-card-bg shadow-2xl transition-all duration-300 mb-8">
+                <p id="learn-prompt" class="text-xl font-medium text-color-text-secondary mb-3">Term:</p>
+                <p id="learn-term" class="text-3xl font-bold break-words"></p>
+            </div>
+
+            <div id="learn-options-container" class="w-full max-w-xl grid grid-cols-1 gap-4 mb-8">
+                <!-- Answer options will be injected here -->
+            </div>
+
+            <!-- Feedback and Continue -->
+            <div id="learn-feedback-container" class="w-full max-w-xl hidden flex flex-col items-center mb-8">
+                <div id="learn-feedback-message" class="text-2xl font-bold mb-4"></div>
+                <div id="learn-correct-answer" class="text-lg text-color-text-secondary mb-6"></div>
+                <div class="flex space-x-4">
+                    <button id="learn-override-button" class="secondary-action-button py-2 px-6 rounded-lg text-sm transition-all duration-300">
+                        I knew this (Override)
+                    </button>
+                    <button id="learn-continue-button" class="continue-button text-lg py-3 px-8 rounded-xl transition-all duration-300">
+                        Continue
                     </button>
                 </div>
             </div>
 
-            <div id="flashcards-view" class="app-view">
-                <div class="perspective-container h-96">
-                    <div id="flashcard-container" class="flashcard relative w-full h-full cursor-pointer rounded-2xl">
-                        <!-- 
-                            BUG FIX: Removed the 'relative' class from this line.
-                            It was conflicting with the 'absolute' class needed for the 3D flip.
-                        -->
-                        <div id="flashcard-front" class="card-face absolute w-full h-full p-6 rounded-2xl flex items-center justify-center">
-                            <button class="tts-button" title="Read text aloud">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707A1 1 0 0112 6.586v10.828a1 1 0 01-1.707.707L5.586 15z" />
-                                </svg>
-                            </button>
-                            <p class="text-3xl font-medium text-center"></p>
-                        </div>
-                        <!-- 
-                            BUG FIX: Removed the 'relative' class from this line.
-                            It was conflicting with the 'absolute' class needed for the 3D flip.
-                        -->
-                        <div id="flashcard-back" class="card-face card-back absolute w-full h-full p-6 rounded-2xl flex items-center justify-center">
-                            <button class="tts-button" title="Read text aloud">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707A1 1 0 0112 6.586v10.828a1 1 0 01-1.707.707L5.586 15z" />
-                                </svg>
-                            </button>
-                            <p class="text-2xl font-medium text-center"></p>
-                        </div>
-                    </div>
-                </div>
-                <div id="flashcard-nav" class="flex justify-between items-center mt-6">
-                    <button id="prev-card-button" class="py-2 px-5 rounded-lg font-medium">&larr;</button>
-                    <div id="card-counter" class="font-medium">1 / 10</div>
-                    <button id="next-card-button" class="py-2 px-5 rounded-lg font-medium">&rarr;</button>
-                </div>
-            </div>
-
-            <div id="learn-view" class="app-view">
-                <div id="learn-progress-container" class="progress-bar-container hidden mb-6">
-                    <div id="learn-progress-bar" class="progress-bar"></div>
-                </div>
-                <div id="learn-mode-disabled" class="text-center p-8 md:p-12 rounded-lg hidden">
-                    <h2 class="text-2xl font-semibold mb-4">Learn Mode Needs More Cards</h2>
-                    <p>Learn mode requires at least 4 cards to generate quizzes. Please add more cards to your deck.</p>
-                </div>
-                <div id="learn-mode-quiz" class="hidden">
-                    <div id="learn-question-box" class="p-6 rounded-2xl mb-6 min-h-[150px] flex items-center justify-center">
-                        <p id="learn-term" class="text-3xl font-medium text-center"></p>
-                    </div>
-                    <div id="learn-options" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    </div>
-                    <div id="learn-feedback-container" class="mt-6 flex gap-4 hidden">
-                        <div id="learn-feedback" class="flex-grow p-4 rounded-lg text-center font-medium">
-                            <span id="learn-feedback-message"></span>
-                        </div>
-                        <button id="learn-continue-button" class="continue-button hidden">Continue</button>
-                    </div>
-                </div>
-                <div id="learn-complete-view" class="text-center p-8 md:p-12 rounded-lg hidden">
-                    <h2 class="text-2xl font-semibold mb-4">You've mastered this round!</h2>
-                    <p class="mb-8">You answered all questions correctly.</p>
-                    <div class="flex flex-col md:flex-row gap-4 justify-center">
-                        <button id="learn-restart-button" class="main-action-button font-medium py-3 px-6 rounded-lg">
-                            Start Again
-                        </button>
-                        <button id="learn-switch-mode-button" class="secondary-action-button font-medium py-3 px-6 rounded-lg">
-                            Switch to Match
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- NEW: Progress View -->
-            <div id="progress-view" class="app-view space-y-8">
-                
-                <!-- 1. Mastery Overview -->
-                <div>
-                    <h2 class="text-2xl font-bold mb-4">Your Mastery</h2>
-                    <div id="mastery-stats-container" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                        <div class="mastery-stat-box bg-green-200 border-green-400">
-                            <span id="mastery-mastered" class="text-3xl font-bold">0</span>
-                            <span class="font-semibold">Mastered</span>
-                        </div>
-                        <div class="mastery-stat-box bg-yellow-200 border-yellow-400">
-                            <span id="mastery-learning" class="text-3xl font-bold">0</span>
-                            <span class="font-semibold">Learning</span>
-                        </div>
-                        <div class="mastery-stat-box bg-gray-200 border-gray-400">
-                            <span id="mastery-not-learned" class="text-3xl font-bold">0</span>
-                            <span class="font-semibold">Not Learned</span>
-                        </div>
-                    </div>
-                    <p class="text-sm text-center mt-3">"Mastered" cards have a high score, "Learning" are in progress, and "Not Learned" have a score of 0.</p>
-                </div>
-
-                <!-- 2. Latest Session Stats -->
-                <div>
-                    <h2 class="text-2xl font-bold mb-4">Latest Round</h2>
-                    <div id="progress-no-session" class="text-center p-8 md:p-12 rounded-lg progress-box hidden">
-                        <h3 class="text-xl font-semibold mb-2">No session data yet!</h3>
-                        <p>Complete a round in Learn, Type, or Match to see your stats here.</p>
-                    </div>
-                    <div id="progress-session-container" class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center hidden">
-                        <div id="progress-chart-container" class="relative w-full max-w-xs mx-auto">
-                            <canvas id="progress-pie-chart"></canvas>
-                        </div>
-                        <div id="latest-session-stats" class="text-center md:text-left space-y-2">
-                            <!-- Stats will be populated by JS -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. Session History -->
-                <div>
-                    <h2 class="text-2xl font-bold mb-4">Session History</h2>
-                    <div id="progress-no-history" class="text-center p-8 md:p-12 rounded-lg progress-box hidden">
-                        <h3 class="text-xl font-semibold mb-2">No history to show.</h3>
-                        <p>Your past study sessions will appear here as you complete them.</p>
-                    </div>
-                    <ul id="progress-history-list" class="space-y-3">
-                        <!-- History items will be populated by JS -->
-                    </ul>
-                </div>
-            </div>
-
-        </main>
-
-        <footer class="text-center p-6 mt-8 border-t">
-            <p class="mb-2">Created by someone</p>
-            <div class="flex justify-center space-x-4">
-                <button id="about-button" class="footer-link underline cursor-pointer">About</button>
-                
-                <a href="https://forms.gle/aorM6MFQvaTMf16j9" class="footer-link underline">
-                    Bug Report
-                </a>
-                
-                <a href="https://forms.gle/Z1xESserXb1NVVDv6" class="footer-link underline">
-                    Feature Request
-                </a>
-            </div>
-        </footer>
-        
-        <div id="toast-notification" class="fixed bottom-6 right-6 py-3 px-5 rounded-lg shadow-xl opacity-0 translate-y-4 transition-all duration-300 z-50">
-            </div>
-
-    </div>
-
-    <!-- About Modal -->
-    <div id="about-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="modal-backdrop fixed inset-0"></div>
-        <div id="about-modal-content" class="relative w-full max-w-md p-6 md:p-8 rounded-2xl">
-            <button id="about-modal-close" class="absolute top-4 right-5 text-3xl font-bold">&times;</button>
-            <h2 class="text-2xl font-bold mb-4">About This Site</h2>
-            <p>
-                This study site was created to be an alternative to other options that bombard you 
-                with ads or make you pay to use them. The site includes flashcards, multiple 
-                choice questions, matching questions, and text questions with AI to intelligently help you memorize for school! With the 
-                base64 URLs, you can share study sets you've created without having to create an 
-                account and risk getting your personal information sold. Simply press the "Share 
-                Deck" button in the top menu to instantly copy the link to your clipboard for fast 
-                sharing. Your progress is stored locally in your browser and will not be deleted 
-                unless you clear your history or site data. This site is still under works 
-                and will contine to bring new features over time. Enjoy studying!
-            </p>
+            <button id="learn-end-button" class="text-color-text-secondary hover:text-color-primary transition-colors duration-200 mb-4">
+                End Session
+            </button>
         </div>
-    </div>
 
-    <!-- Settings Modal -->
-    <div id="settings-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="modal-backdrop fixed inset-0"></div>
-        <div id="settings-modal-content" class="relative w-full max-w-md p-6 md:p-8 rounded-2xl space-y-6">
-            <button id="settings-modal-close" class="absolute top-4 right-5 text-3xl font-bold">&times;</button>
-            <h2 class="text-2xl font-bold mb-4">Study Set Settings</h2>
+        <!-- Type View -->
+        <div id="type-view" class="app-view flex-grow flex flex-col items-center justify-between p-4 hidden">
+            <!-- Content for Type Mode -->
+            <div id="type-progress-container" class="w-full flex justify-between items-center mb-4">
+                <div id="type-progress-bar-container" class="progress-bar-container flex-grow mr-4">
+                    <div id="type-progress-bar" class="progress-bar"></div>
+                </div>
+                <p id="type-progress-text" class="text-color-text-secondary"></p>
+            </div>
             
-            <div>
-                <label for="setting-deck-title" class="create-label">DECK TITLE</label>
-                <input type="text" id="setting-deck-title" class="w-full" placeholder="Enter a title...">
+            <div id="type-card-display" class="w-full max-w-xl p-6 rounded-xl bg-color-card-bg shadow-2xl transition-all duration-300 mb-8">
+                <p id="type-prompt" class="text-xl font-medium text-color-text-secondary mb-3">Term:</p>
+                <p id="type-term" class="text-3xl font-bold break-words"></p>
             </div>
-            <div>
-                <label class="create-label">SHUFFLE CARDS</label>
-                <button id="setting-toggle-shuffle" class="settings-toggle-button w-full">
-                    Shuffle
-                </button>
-            </div>
-            <div>
-                <label class="create-label">START WITH</label>
-                <button id="setting-toggle-start-with" class="settings-toggle-button w-full">
-                    Term
-                </button>
+            
+            <div class="w-full max-w-xl mb-8">
+                <input type="text" id="type-answer-input" placeholder="Enter the definition..." class="w-full p-4 text-xl bg-color-bg-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-color-primary transition-all duration-200" autocomplete="off">
             </div>
 
-            <div class="pt-4 border-t border-dashed border-[var(--color-border)]">
-                <label class="create-label">EXPORT</label>
-                <button id="copy-deck-button" class="secondary-action-button w-full">
-                    Copy all terms and definitions
-                </button>
+            <!-- Feedback and Continue -->
+            <div id="type-feedback-container" class="w-full max-w-xl hidden flex flex-col items-center mb-8">
+                <div id="type-feedback-message" class="text-2xl font-bold mb-4"></div>
+                <div id="type-correct-answer" class="text-lg text-color-text-secondary mb-6"></div>
+                <div class="flex space-x-4">
+                    <button id="type-override-button" class="secondary-action-button py-2 px-6 rounded-lg text-sm transition-all duration-300">
+                        I knew this (Override)
+                    </button>
+                    <button id="type-continue-button" class="continue-button text-lg py-3 px-8 rounded-xl transition-all duration-300">
+                        Continue
+                    </button>
+                </div>
             </div>
-        </div>
-    </div>
 
-    <!-- NEW: Clear Confirmation Modal -->
-    <div id="clear-confirm-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="modal-backdrop fixed inset-0"></div>
-        <div id="clear-confirm-modal-content" class="relative w-full max-w-sm p-6 md:p-8 rounded-2xl">
-            <h2 class="text-xl font-bold mb-4">Are you sure?</h2>
-            <p class="mb-6">
-                This will clear all terms, definitions, and the title from the create page. This action cannot be undone.
-            </p>
-            <div class="flex justify-end space-x-3">
-                <button id="clear-cancel-button" class="secondary-action-button font-medium py-2 px-5 rounded-lg">
-                    Cancel
-                </button>
-                <button id="clear-confirm-button" class="danger-action-button font-medium py-2 px-5 rounded-lg">
-                    Clear All
-                </button>
-            </div>
+            <button id="type-end-button" class="text-color-text-secondary hover:text-color-primary transition-colors duration-200 mb-4">
+                End Session
+            </button>
         </div>
-    </div>
 
-    <!-- NEW: Unsaved Changes Modal -->
-    <div id="unsaved-changes-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="modal-backdrop fixed inset-0"></div>
-        <div id="unsaved-changes-modal-content" class="relative w-full max-w-sm p-6 md:p-8 rounded-2xl">
-            <h2 class="text-xl font-bold mb-4">Unsaved Changes</h2>
-            <p class="mb-6">
-                You have unsaved changes. Do you want to save them before continuing?
-            </p>
-            <div class="flex flex-col space-y-3">
-                <button id="unsaved-save-button" class="main-action-button font-medium py-3 px-5 rounded-lg">
-                    Save & Continue
-                </button>
-                <button id="unsaved-discard-button" class="danger-action-button font-medium py-3 px-5 rounded-lg">
-                    Continue without Saving
-                </button>
-                <button id="unsaved-cancel-button" class="secondary-action-button font-medium py-3 px-5 rounded-lg">
-                    Cancel
-                </button>
+        <!-- Match View -->
+        <div id="match-view" class="app-view flex-grow flex flex-col items-center justify-between p-4 hidden">
+            <!-- Content for Match Mode -->
+            <div id="match-header" class="w-full max-w-4xl flex justify-between items-center mb-6">
+                <div class="text-lg font-semibold text-color-text-secondary">Best Time: <span id="match-best-time" class="text-color-primary">--</span></div>
+                <div class="text-3xl font-bold text-color-primary-dark"><span id="match-timer">0.0</span>s</div>
+                <div class="text-lg font-semibold text-color-text-secondary">Matches Left: <span id="match-items-left">--</span></div>
+            </div>
+            
+            <div id="match-game-container" class="w-full max-w-4xl grid grid-cols-2 gap-4 flex-grow mb-8">
+                <!-- Match items will be injected here -->
+            </div>
+
+            <button id="match-end-button" class="text-color-text-secondary hover:text-color-primary transition-colors duration-200 mb-4">
+                End Session
+            </button>
+        </div>
+        
+        <!-- NEW: Session Summary View -->
+        <div id="session-summary-view" class="app-view flex-grow flex flex-col items-center justify-center p-4 hidden text-center">
+            <h1 class="text-4xl font-extrabold mb-2 text-color-primary">Session Finished!</h1>
+            <p id="summary-mode-title" class="text-2xl font-semibold mb-8 text-color-text-secondary"></p>
+
+            <div class="w-full max-w-3xl bg-color-card-bg p-6 md:p-10 rounded-2xl shadow-2xl mb-8 flex flex-col lg:flex-row items-center justify-center space-y-8 lg:space-y-0 lg:space-x-10">
+                
+                <!-- Chart Container -->
+                <div class="w-64 h-64 flex-shrink-0 relative">
+                    <canvas id="session-pie-chart"></canvas>
+                    <div id="chart-center-text" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span id="chart-total-cards" class="text-4xl font-bold text-color-primary"></span>
+                        <span class="text-sm font-medium text-color-text-secondary">Total Cards</span>
+                    </div>
+                </div>
+
+                <!-- Stats Container -->
+                <div class="text-left w-full lg:w-auto flex-grow">
+                    <h2 class="text-2xl font-bold mb-4 border-b border-color-border pb-2">Your Performance</h2>
+                    <div class="space-y-3">
+                        <p class="text-lg font-medium">Mode: <span id="summary-stat-mode" class="float-right font-bold text-color-primary"></span></p>
+                        <p class="text-lg font-medium">Time Taken: <span id="summary-stat-time" class="float-right font-bold text-color-primary"></span></p>
+                        <p class="text-lg font-medium">First-Try Success: <span id="summary-stat-first-try" class="float-right font-bold text-color-correct"></span></p>
+                        <p class="text-lg font-medium">Needed Review: <span id="summary-stat-reviewed" class="float-right font-bold text-color-incorrect"></span></p>
+                        <p class="text-lg font-medium">Total Attempts: <span id="summary-stat-attempts" class="float-right font-bold text-color-text-primary"></span></p>
+                        <p class="text-lg font-medium">Accuracy: <span id="summary-stat-accuracy" class="float-right font-bold text-color-text-primary"></span></p>
+                    </div>
+                </div>
+
+            </div>
+            
+            <!-- Comparison/History Section -->
+            <div class="w-full max-w-3xl bg-color-bg-secondary p-6 rounded-xl shadow-inner mb-8 text-left">
+                <h2 class="text-xl font-bold mb-3 border-b border-color-border pb-2">Progress Over Time</h2>
+                <p id="summary-history-message" class="text-color-text-secondary italic">
+                    This is your first session in <span id="summary-history-mode-name" class="font-bold"></span> mode. Keep studying to see your improvement!
+                </p>
+                <div id="summary-history-stats" class="space-y-2 hidden">
+                    <p class="text-md font-medium">Last Session Time: <span id="summary-last-time" class="float-right font-bold"></span></p>
+                    <p class="text-md font-medium">Last Session First-Try Success: <span id="summary-last-first-try" class="float-right font-bold"></span></p>
+                    <p class="text-md font-medium">Improvement: <span id="summary-improvement-score" class="float-right font-bold"></span></p>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <button id="summary-back-button" class="main-action-button text-lg py-3 px-8 rounded-xl transition-all duration-300 transform hover:scale-[1.03] shadow-md hover:shadow-lg">
+                Back to Study Modes
+            </button>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+            <div class="modal-backdrop fixed inset-0"></div>
+            <div id="settings-modal-content" class="relative w-full max-w-lg p-6 md:p-8 rounded-2xl">
+                <h2 class="text-2xl font-bold mb-6 border-b border-color-border pb-3">Study Settings</h2>
+                
+                <div class="space-y-6">
+                    <!-- Shuffle Toggle -->
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Shuffle Cards</h3>
+                        <div class="flex space-x-2">
+                            <button id="shuffle-on-button" data-value="true" class="settings-toggle-button flex-1 py-3 px-4 rounded-lg">On</button>
+                            <button id="shuffle-off-button" data-value="false" class="settings-toggle-button flex-1 py-3 px-4 rounded-lg">Off</button>
+                        </div>
+                    </div>
+
+                    <!-- Term/Definition First Toggle -->
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Study Prompt</h3>
+                        <div class="flex space-x-2">
+                            <button id="term-first-button" data-value="true" class="settings-toggle-button flex-1 py-3 px-4 rounded-lg">Term First</button>
+                            <button id="def-first-button" data-value="false" class="settings-toggle-button flex-1 py-3 px-4 rounded-lg">Definition First</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Theme Toggle -->
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">App Theme</h3>
+                        <div class="flex space-x-2">
+                            <button id="dark-mode-button" data-value="true" class="settings-toggle-button flex-1 py-3 px-4 rounded-lg">Dark Mode</button>
+                            <button id="light-mode-button" data-value="false" class="settings-toggle-button flex-1 py-3 px-4 rounded-lg">Light Mode</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 flex justify-end">
+                    <button id="close-settings-button" class="main-action-button font-medium py-3 px-6 rounded-lg">
+                        Done
+                    </button>
+                </div>
             </div>
         </div>
+
+        <!-- Clear All Modal -->
+        <div id="clear-confirm-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+            <div class="modal-backdrop fixed inset-0"></div>
+            <div id="clear-confirm-modal-content" class="relative w-full max-w-sm p-6 md:p-8 rounded-2xl">
+                <h2 class="text-xl font-bold mb-4 text-color-incorrect">Clear All Data?</h2>
+                <p class="mb-6 text-color-text-secondary">
+                    This will permanently delete ALL study sets, progress, and settings. This cannot be undone.
+                </p>
+                <div class="flex justify-end space-x-3">
+                    <button id="clear-cancel-button" class="secondary-action-button font-medium py-2 px-5 rounded-lg">
+                        Cancel
+                    </button>
+                    <button id="clear-confirm-button" class="danger-action-button font-medium py-2 px-5 rounded-lg">
+                        Clear All
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW: Unsaved Changes Modal -->
+        <div id="unsaved-changes-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+            <div class="modal-backdrop fixed inset-0"></div>
+            <div id="unsaved-changes-modal-content" class="relative w-full max-w-sm p-6 md:p-8 rounded-2xl">
+                <h2 class="text-xl font-bold mb-4">Unsaved Changes</h2>
+                <p class="mb-6 text-color-text-secondary">
+                    You have unsaved changes. Do you want to save them before continuing?
+                </p>
+                <div class="flex flex-col space-y-3">
+                    <button id="unsaved-save-button" class="main-action-button font-medium py-3 px-5 rounded-lg">
+                        Save & Continue
+                    </button>
+                    <button id="unsaved-discard-button" class="danger-action-button font-medium py-3 px-5 rounded-lg">
+                        Continue without Saving
+                    </button>
+                    <button id="unsaved-cancel-button" class="secondary-action-button font-medium py-3 px-5 rounded-lg">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script src="script.js"></script>
