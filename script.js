@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorageKey: 'flashcardAppProgress', // For SRS card scores
         sessionStorageKey: 'flashcardAppSessionState', // NEW: For learn/type session
         themeKey: 'flashcardAppTheme',
+        historyStorageKey: 'flashcardAppHistory', // NEW: For session history
         toastTimeout: null,
         correctAnswerTimeout: null, // NEW: For auto-advancing on correct
         isAnimating: false,
@@ -49,6 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
         settingsBeforeEdit: null, // NEW: To track changes in settings modal
         isCreateDeckDirty: false, // NEW: For unsaved changes
         pendingModeChange: null, // NEW: For unsaved changes
+        currentSessionStats: null, // NEW: For tracking session performance
+        progressChartInstance: null, // NEW: To hold the Chart.js object
     };
 
     // --- DOM ELEMENTS ---
@@ -168,6 +171,20 @@ document.addEventListener('DOMContentLoaded', () => {
         unsavedSaveButton: document.getElementById('unsaved-save-button'),
         unsavedDiscardButton: document.getElementById('unsaved-discard-button'),
         unsavedCancelButton: document.getElementById('unsaved-cancel-button'),
+
+        // NEW: Progress View Elements
+        progressView: document.getElementById('progress-view'),
+        masteryStatsContainer: document.getElementById('mastery-stats-container'),
+        masteryMastered: document.getElementById('mastery-mastered'),
+        masteryLearning: document.getElementById('mastery-learning'),
+        masteryNotLearned: document.getElementById('mastery-not-learned'),
+        progressNoSession: document.getElementById('progress-no-session'),
+        progressSessionContainer: document.getElementById('progress-session-container'),
+        progressChartContainer: document.getElementById('progress-chart-container'),
+        progressPieChart: document.getElementById('progress-pie-chart').getContext('2d'),
+        latestSessionStats: document.getElementById('latest-session-stats'),
+        progressNoHistory: document.getElementById('progress-no-history'),
+        progressHistoryList: document.getElementById('progress-history-list'),
     };
 
     // --- CONSTANTS ---
@@ -313,47 +330,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * NEW: Loads the best match time from localStorage.
-     */
+// ... existing code ... */
     function loadBestTimeFromLocalStorage() {
         try {
-            const storedTime = localStorage.getItem(app.matchStorageKey);
-            if (storedTime) {
-                const parsedTime = parseFloat(storedTime);
-                if (!isNaN(parsedTime)) {
-                    app.matchBestTime = parsedTime;
-                }
-            }
-        } catch (error) {
-            console.error("Error loading best time from localStorage:", error);
-        }
-    }
-
-    /**
-     * Saves the current deck's progress to localStorage.
-     */
+// ... existing code ... */
     function saveProgressToLocalStorage() {
         try {
-            // We store progress on the main deck cards.
-            // When saving, we convert only the progress part to an object for storage.
-            const progressToSave = {};
-            for (const card of app.currentDeck.cards) {
-                const key = `${card.term}|${card.definition}`;
-                progressToSave[key] = {
-                    score: card.score,
-                    lastReviewed: card.lastReviewed,
-                    nextReview: card.nextReview
-                };
-            }
-            localStorage.setItem(app.localStorageKey, JSON.stringify(progressToSave));
-        } catch (error) {
-            console.error("Error saving progress to localStorage:", error);
-        }
-    }
-
-    /**
-     * NEW: Saves Learn/Type session progress to localStorage.
-     */
+// ... existing code ... */
     function saveSessionsToLocalStorage() {
         try {
             const sessionState = {
@@ -368,153 +351,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * NEW: Saves the best match time to localStorage.
+     * NEW: Loads all session history from localStorage.
+     * @returns {object} An object containing all history, keyed by deck hash.
      */
-    function saveBestTimeToLocalStorage() {
+    function loadHistoryFromLocalStorage() {
         try {
-            if (app.matchBestTime !== Infinity && !isNaN(app.matchBestTime)) {
-                localStorage.setItem(app.matchStorageKey, app.matchBestTime.toString());
+            const storedHistory = localStorage.getItem(app.historyStorageKey);
+            if (storedHistory) {
+                return JSON.parse(storedHistory);
             }
         } catch (error) {
-            console.error("Error saving best time to localStorage:", error);
+            console.error("Error loading session history from localStorage:", error);
         }
+        return {}; // Return empty object on failure
     }
 
     /**
-     * Loads a deck from the URL hash. If no hash, loads a default deck.
+     * NEW: Saves the provided session stats to localStorage.
+     * @param {object} session - The session object to save.
      */
-    function loadDeckFromURL() {
-        // MODIFIED: rawDeck is now an object
-        let rawDeck = getDefaultDeck();
-        let hash = window.location.hash.substring(1); // <-- Get hash as 'let'
-        const defaultSettings = { shuffle: false, termFirst: true };
-
-        if (hash) {
-            
-            // --- FIX FOR MOBILE SHARING ---
-            // MODIFICATION: Removed the old `+` to ` ` fix, as it's no longer
-            // needed with URL-safe Base64 and would break the new decoding.
-            // hash = hash.replace(/ /g, '+'); // <-- REMOVED
-            app.currentDeckHash = hash; // NEW: Store the hash
-            // --- END FIX ---
-
-            try {
-                // MODIFICATION: Use new URL-safe decode function
-                const jsonString = base64UrlDecode(hash); // Decode the URL-safe hash
-                const parsedDeck = JSON.parse(jsonString);
-                
-                // Check for new structure (with settings)
-                if (parsedDeck && Array.isArray(parsedDeck.cards)) {
-                    rawDeck = parsedDeck;
-                    // Merge saved settings with defaults to ensure all keys exist
-                    rawDeck.settings = { ...defaultSettings, ...parsedDeck.settings };
-                } else if (Array.isArray(parsedDeck)) {
-                    // Handle old structure (array of cards)
-                    rawDeck = { title: 'Untitled Deck', cards: parsedDeck, settings: defaultSettings };
-                }
-                
-                if (!rawDeck.title) rawDeck.title = 'Untitled Deck';
-
-            } catch (error) {
-                console.error("Error parsing deck from hash:", error);
-                
-                // NEW: Show a user-facing error message
-                showToast("Error loading deck. The link may be corrupted or from an old version.");
-
-                rawDeck = getDefaultDeck();
-                window.location.hash = ''; // Clear invalid hash
+    function saveSessionToHistory(session) {
+        try {
+            const allHistory = loadHistoryFromLocalStorage();
+            if (!allHistory[app.currentDeckHash]) {
+                allHistory[app.currentDeckHash] = [];
             }
-        } else {
-            app.currentDeckHash = ''; // NEW: Store empty hash
+            // Add to the beginning of the array
+            allHistory[app.currentDeckHash].unshift(session);
+            // Optional: Limit history size, e.g., to last 20 sessions
+            if (allHistory[app.currentDeckHash].length > 20) {
+                allHistory[app.currentDeckHash].pop();
+            }
+            localStorage.setItem(app.historyStorageKey, JSON.stringify(allHistory));
+        } catch (error) {
+            console.error("Error saving session to history:", error);
         }
-
-        // MODIFIED: Map cards from rawDeck.cards
-        const mappedCards = rawDeck.cards.map((card, index) => {
-            const key = `${card.term}|${card.definition}`;
-            const storedProgress = app.progressData.get(key);
-            const defaultState = {
-                id: `${Date.now()}-${index}`,
-                term: card.term,
-                definition: card.definition,
-                score: 0,
-                lastReviewed: 0,
-                nextReview: 0
-            };
-            // Apply stored progress if it exists
-            return { ...defaultState, ...(storedProgress || {}) };
-        });
-
-        app.currentDeck = {
-            title: rawDeck.title,
-            cards: mappedCards,
-            settings: rawDeck.settings // Assign settings
-        };
-        app.currentCardIndex = 0;
     }
 
     /**
-     * Returns a default sample deck.
-     * FIXED: Removed the duplicate function. This is the only one.
+     * NEW: Saves the best match time to localStorage.
      */
+// ... existing code ... */
     function getDefaultDeck() {
         // MODIFIED: Return new deck object structure with settings
-        return {
-            title: '',
-            cards: [],
-            settings: {
-                shuffle: false,
-                termFirst: true
-            }
-        };
-    }
-
-    /**
-     * Sets the application's current mode and updates the UI.
-     * @param {string} mode - The mode to switch to.
-     */
-    function setMode(mode) {
-        // --- NEW: Unsaved Changes Check ---
-        if (app.currentMode === 'create' && mode !== 'create' && app.isCreateDeckDirty) {
-            showUnsavedChangesModal(mode);
-            return; // Stop navigation
-        }
-        // --- END NEW ---
-
-        // MODIFIED: Show/hide buttons based on deck length
-        if (app.currentDeck.cards.length === 0) {
-            dom.settingsButton.classList.add('hidden');
-            dom.shareDeckButton.classList.add('hidden');
-        } else {
-            dom.settingsButton.classList.remove('hidden');
-            dom.shareDeckButton.classList.remove('hidden');
-        }
-
-        // MODIFIED: Check cards array length
-        if (app.currentDeck.cards.length === 0 && mode !== 'create') {
-            mode = 'empty';
-        // MODIFIED: Check cards array length
-        } else if (app.currentDeck.cards.length < 4 && mode === 'learn') {
-            dom.learnModeQuiz.classList.add('hidden');
-            dom.learnCompleteView.classList.add('hidden'); // Hide complete view
-            dom.learnModeDisabled.classList.remove('hidden'); // Show disabled view
-        } else if (mode === 'learn') {
-            dom.learnModeDisabled.classList.add('hidden'); // Hide disabled view
-            // Note: startLearnMode() will handle showing/hiding quiz vs. complete
-        
-        // NEW: Type mode logic
-        } else if (app.currentDeck.cards.length < 1 && mode === 'type') {
-            dom.typeModeQuiz.classList.add('hidden');
-            dom.typeCompleteView.classList.add('hidden');
-            dom.typeModeDisabled.classList.remove('hidden');
-        } else if (mode === 'type') {
-            dom.typeModeDisabled.classList.add('hidden');
-        
-        // NEW: Match mode logic
-        } else if (app.currentDeck.cards.length < 2 && mode === 'match') {
-            dom.matchModeGame.classList.add('hidden');
-            dom.matchCompleteView.classList.add('hidden');
-            dom.matchStartScreen.classList.add('hidden'); // NEW
-            dom.matchModeDisabled.classList.remove('hidden');
+// ... existing code ... */
         } else if (mode === 'match') {
             dom.matchModeDisabled.classList.add('hidden');
         }
@@ -614,12 +494,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     startMatchMode(); // This will show the start screen
                 }
             }
+        } else if (mode === 'progress') { // NEW: Handle progress view
+            renderProgressView();
         }
     }
 
     /**
-     * Attaches all primary event listeners.
-     */
+// ... existing code ... */
     function addEventListeners() {
         // NEW: Theme toggle
         dom.themeToggleButton.addEventListener('click', toggleTheme);
@@ -806,204 +687,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * MODIFIED: Handles global keydown events for shortcuts.
-     */
-    function handleGlobalKeydown(e) {
-        // Don't interfere with typing in inputs
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            return;
-        }
-
-        // Handle Spacebar
-        if (e.code === 'Space') {
-            e.preventDefault(); // Stop page from scrolling
-
-            if (app.currentMode === 'flashcards') {
-                // Flip flashcard
-                if (!app.isAnimating) {
-                    dom.flashcardContainer.classList.toggle('is-flipped');
-                }
-            } else if (app.currentMode === 'learn' && !dom.learnContinueButton.classList.contains('hidden')) {
-                // Advance in Learn mode if continue button is visible
-                if (app.correctAnswerTimeout) { // Clear auto-advance timer
-                    clearTimeout(app.correctAnswerTimeout);
-                    app.correctAnswerTimeout = null;
-                }
-                renderLearnQuestion();
-            } else if (app.currentMode === 'type' && !dom.typeContinueButton.classList.contains('hidden')) {
-                // Advance in Type mode if continue button is visible
-                if (app.correctAnswerTimeout) { // Clear auto-advance timer
-                    clearTimeout(app.correctAnswerTimeout);
-                    app.correctAnswerTimeout = null;
-                }
-                renderTypeQuestion();
-            }
-        }
-
-        // --- NEW: Handle Arrow Keys for Flashcards ---
-        if (app.currentMode === 'flashcards') {
-            if (e.code === 'ArrowLeft') {
-                e.preventDefault(); // Stop page scrolling
-                showPrevCard();
-            } else if (e.code === 'ArrowRight') {
-                e.preventDefault(); // Stop page scrolling
-                showNextCard();
-            }
-        }
-
-        // --- NEW: Handle Number/Letter Keys for Learn Mode ---
-        // Check if learn mode is active and the quiz view is visible
-        if (app.currentMode === 'learn' && !dom.learnModeQuiz.classList.contains('hidden')) {
-            // Check if options are currently enabled (i.e., not showing feedback)
-            const options = dom.learnOptions.querySelectorAll('button');
-            if (options.length === 0 || (options[0] && options[0].disabled)) {
-                return; // Don't trigger if options are disabled (feedback is showing)
-            }
-
-            let optionToClick = null;
-            // Use 'key' for 1,2,3,4 and 'code' for a,b,c,d to be robust
-            if (e.key === '1' || e.code === 'KeyA') {
-                optionToClick = options[0];
-            } else if (e.key === '2' || e.code === 'KeyB') {
-                optionToClick = options[1];
-            } else if (e.key === '3' || e.code === 'KeyC') {
-                optionToClick = options[2];
-            } else if (e.key === '4' || e.code === 'KeyD') {
-                optionToClick = options[3];
-            }
-
-            if (optionToClick) {
-                e.preventDefault();
-                optionToClick.click(); // Simulate a click on the button
-            }
-        }
-    }
-
-
-    // --- NEW: About Modal Functions ---
-    function showAboutModal() {
-        dom.aboutModalOverlay.classList.add('visible');
-    }
-
-    function hideAboutModal() {
-        dom.aboutModalOverlay.classList.remove('visible');
-    }
-    // --- End About Modal Functions ---
-
-    // --- NEW: Settings Modal Functions ---
-    function showSettingsModal() {
-        // Populate modal with current settings
-        dom.settingDeckTitle.value = app.currentDeck.title;
-        updateSettingsToggle(dom.settingToggleShuffle, app.currentDeck.settings.shuffle, "Shuffle");
-        updateSettingsToggle(dom.settingToggleStartWith, app.currentDeck.settings.termFirst, "Term", "Definition");
-        
-        // NEW: Store settings to check for changes
-        app.settingsBeforeEdit = {
-            shuffle: app.currentDeck.settings.shuffle,
-            termFirst: app.currentDeck.settings.termFirst
-        };
-
-        dom.settingsModalOverlay.classList.add('visible');
-    }
-
-    function hideSettingsModal() {
-        dom.settingsModalOverlay.classList.remove('visible');
-        
-        // Check if settings that affect study order have changed
-        const settingsChanged = app.settingsBeforeEdit && 
-            (app.settingsBeforeEdit.shuffle !== app.currentDeck.settings.shuffle || 
-             app.settingsBeforeEdit.termFirst !== app.currentDeck.settings.termFirst);
-
-        if (settingsChanged) {
-            // Reset sessions
-            app.learnSessionCards = []; 
-            app.typeSessionCards = []; // Also reset type session
-            app.matchSessionCards = [];
-            
-            saveSessionsToLocalStorage(); // NEW: Save the empty sessions
-
-            // If in an affected mode, reload it to apply changes
-            if (app.currentMode === 'flashcards' || app.currentMode === 'learn' || app.currentMode === 'type' || app.currentMode === 'match') {
-                setMode(app.currentMode);
-            }
-        }
-        
-        app.settingsBeforeEdit = null; // Clear stored settings
-    }
-
-    function handleTitleSettingChange() {
-        const newTitle = dom.settingDeckTitle.value;
-        app.currentDeck.title = newTitle;
-        dom.headerTitle.textContent = newTitle;
-        dom.deckTitleInput.value = newTitle; // Keep create view in sync
-        updateURLHash(); // Save change
-        updateDocumentTitle(); // *** NEW *** Update tab title
-    }
-
-    function handleShuffleSettingChange() {
-        app.currentDeck.settings.shuffle = !app.currentDeck.settings.shuffle;
-        updateSettingsToggle(dom.settingToggleShuffle, app.currentDeck.settings.shuffle, "Shuffle");
-        updateURLHash();
-        app.currentCardIndex = 0; // ***** PROGRESS RESET FIX *****
-    }
-
-    function handleStartWithSettingChange() {
-        app.currentDeck.settings.termFirst = !app.currentDeck.settings.termFirst;
-        updateSettingsToggle(dom.settingToggleStartWith, app.currentDeck.settings.termFirst, "Term", "Definition");
-        updateURLHash();
-        app.currentCardIndex = 0; // ***** PROGRESS RESET FIX *****
-    }
-
-    /** Helper to update a toggle button's appearance */
-    function updateSettingsToggle(button, isActive, activeText, inactiveText = null) {
-        if (isActive) {
-            button.classList.add('active');
-            button.textContent = inactiveText ? activeText : `${activeText}: ON`;
-        } else {
-            button.classList.remove('active');
-            button.textContent = inactiveText ? inactiveText : `${activeText}: OFF`;
-        }
-    }
-    // --- End Settings Modal Functions ---
-
-    // --- NEW: Clear Confirm Modal Functions ---
-    function showClearConfirmModal() {
-        dom.clearConfirmModalOverlay.classList.add('visible');
-    }
-
-    function hideClearConfirmModal() {
-        dom.clearConfirmModalOverlay.classList.remove('visible');
-    }
-
-    function handleClearAll() {
-        dom.deckTitleInput.value = '';
-        dom.cardEditorList.innerHTML = '';
-        dom.deckInputArea.value = '';
-        renderCreateEditor(); // Re-adds the 3 empty rows
-        app.isCreateDeckDirty = false; // Resets dirty flag
-        hideClearConfirmModal();
-        showToast("Inputs cleared.");
-    }
-    // --- End Clear Confirm Modal Functions ---
-
-    // --- NEW: Unsaved Changes Modal Functions ---
-    function showUnsavedChangesModal(targetMode) {
-        app.pendingModeChange = targetMode;
-        dom.unsavedChangesModalOverlay.classList.add('visible');
-    }
-
-    function hideUnsavedChangesModal() {
-        dom.unsavedChangesModalOverlay.classList.remove('visible');
-    }
-    // --- End Unsaved Changes Modal Functions ---
-
-
-    // --- NEW: Progress Update Function ---
-    /**
-     * Updates a card's SRS progress and saves it.
-     * @param {object} card - The card object to update.
-     * @param {boolean} wasCorrect - If the answer was correct.
-     */
+// ... existing code ... */
     function updateCardProgress(card, wasCorrect) {
         const now = Date.now();
         card.lastReviewed = now;
@@ -1031,167 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FLASHCARD MODE ---
 
-    /**
-     * Renders the current flashcard's text content.
-     */
-    function renderFlashcardContent() {
-        // MODIFIED: Use studyDeck
-        if (app.studyDeck.length === 0) return;
-
-        // MODIFIED: Get card from studyDeck
-        const card = app.studyDeck[app.currentCardIndex];
-        
-        // NEW: Respect 'termFirst' setting
-        if (app.currentDeck.settings.termFirst) {
-            dom.flashcardFront.textContent = card.term;
-            dom.flashcardBack.textContent = card.definition;
-        } else {
-            dom.flashcardFront.textContent = card.definition;
-            dom.flashcardBack.textContent = card.term;
-        }
-
-        // MODIFIED: Use studyDeck length
-        dom.cardCounter.textContent = `${app.currentCardIndex + 1} / ${app.studyDeck.length}`;
-    }
-
-    // MODIFIED: Re-written to fix animation bug.
-    function showPrevCard() {
-        // MODIFIED: Use studyDeck
-        if (app.studyDeck.length === 0 || app.isAnimating) return;
-        app.isAnimating = true;
-
-        // 1. Fade out
-        dom.flashcardContainer.style.opacity = 0;
-
-        // 2. Wait for fade to finish (200ms from CSS)
-        setTimeout(() => {
-            // 3. ***** START FIX V3 *****
-            // Temporarily disable ONLY transform transition
-            dom.flashcardContainer.style.transition = 'opacity 0.2s ease-in-out';
-            
-            // 4. Change content
-            app.currentCardIndex = (app.currentCardIndex - 1 + app.studyDeck.length) % app.studyDeck.length;
-            renderFlashcardContent(); // Update text
-            
-            // 5. Instantly remove 'is-flipped' (so it's on the front face)
-            dom.flashcardContainer.classList.remove('is-flipped');
-            
-            // 6. Force reflow 
-            void dom.flashcardContainer.offsetWidth; 
-
-            // 7. Re-enable all transitions
-            dom.flashcardContainer.style.transition = ''; 
-            // ***** END FIX V3 *****
-            
-            // 8. Fade in
-            dom.flashcardContainer.style.opacity = 1;
-
-            // 9. Allow new animations
-            setTimeout(() => {
-                app.isAnimating = false;
-            }, 200); // Wait for fade in
-        }, 200); // Wait for fade out
-    }
-    
-    // MODIFIED: Re-written to fix animation bug.
-    function showNextCard() {
-        // MODIFIED: Use studyDeck
-        if (app.studyDeck.length === 0 || app.isAnimating) return;
-        app.isAnimating = true;
-
-        // 1. Fade out
-        dom.flashcardContainer.style.opacity = 0;
-
-        // 2. Wait for fade to finish (200ms from CSS)
-        setTimeout(() => {
-            // 3. ***** START FIX V3 *****
-            // Temporarily disable ONLY transform transition
-            dom.flashcardContainer.style.transition = 'opacity 0.2s ease-in-out';
-            
-            // 4. Change content
-            app.currentCardIndex = (app.currentCardIndex + 1) % app.studyDeck.length;
-            renderFlashcardContent(); // Update text
-            
-            // 5. Instantly remove 'is-flipped' (so it's on the front face)
-            dom.flashcardContainer.classList.remove('is-flipped');
-            
-            // 6. Force reflow 
-            void dom.flashcardContainer.offsetWidth; 
-
-            // 7. Re-enable all transitions
-            dom.flashcardContainer.style.transition = '';
-            // ***** END FIX V3 *****
-            
-            // 8. Fade in
-            dom.flashcardContainer.style.opacity = 1;
-
-            // 9. Allow new animations
-            setTimeout(() => {
-                app.isAnimating = false;
-            }, 200); // Wait for fade in
-        }, 200); // Wait for fade out
-    }
-
-    // --- NEW: Swipe Navigation Handlers ---
-    
-    /**
-     * Records the start of a touch event for swiping
-     */
-    function handleTouchStart(e) {
-        app.touchStartX = e.changedTouches[0].screenX;
-        app.touchStartY = e.changedTouches[0].screenY;
-        // Reset end coordinates
-        app.touchEndX = 0; 
-        app.touchEndY = 0;
-    }
-
-    /**
-     * Records the movement of a touch (needed for touchend)
-     */
-    function handleTouchMove(e) {
-        app.touchEndX = e.changedTouches[0].screenX;
-        app.touchEndY = e.changedTouches[0].screenY;
-    }
-
-    /**
-     * Determines if a swipe occurred and navigates cards
-     */
-    function handleTouchEnd(e) {
-        // Check if touch moved significantly
-        if (app.touchEndX === 0) {
-            // No 'touchmove' event fired, so this is a tap.
-            // Allow the 'click' event to proceed for flipping.
-            return; 
-        }
-
-        const dx = app.touchEndX - app.touchStartX;
-        const dy = app.touchEndY - app.touchStartY;
-        const threshold = 75; // Min pixels for a swipe
-        
-        // Check if horizontal swipe is dominant and passes threshold
-        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
-            // Horizontal swipe detected
-            if (dx > 0) {
-                // Swipe Right (Previous Card)
-                showPrevCard();
-            } else {
-                // Swipe Left (Next Card)
-                showNextCard();
-            }
-            
-            // This was a swipe, so prevent the 'click' event from flipping the card
-            e.preventDefault(); 
-        }
-
-        // Reset start coordinates for the next touch
-        app.touchStartX = 0;
-        app.touchStartY = 0;
-        // Note: End coordinates are reset in touchstart
-    }
-
-
-    // --- LEARN MODE ---
-
+// ... existing code ... */
     function startLearnMode() {
         // MODIFIED: Use studyDeck
         if (app.studyDeck.length < 4) return;
@@ -1203,13 +727,16 @@ document.addEventListener('DOMContentLoaded', () => {
         app.learnSessionCards = [...app.studyDeck]; // NEW: Create session list
         shuffleArray(app.learnSessionCards); // NEW: Shuffle session list
         
+        // NEW: Initialize session stats
+        app.currentSessionStats = {
+            missedCards: new Set(),
+            totalCards: app.learnSessionCards.length,
+            mode: 'learn'
+        };
+        
         updateProgressBar('learn'); // NEW
         renderLearnQuestion();
-        saveSessionsToLocalStorage(); // NEW: Save the new session
-    }
-
-
-
+// ... existing code ... */
     function renderLearnQuestion() {
         // NEW: Clear any pending auto-advance
         if (app.correctAnswerTimeout) {
@@ -1227,6 +754,14 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.learnModeQuiz.classList.add('hidden');
             dom.learnCompleteView.classList.remove('hidden');
             dom.learnProgressBarContainer.classList.add('hidden'); // NEW: Hide on complete
+            saveCurrentSessionStats(); // NEW: Save session stats
+            saveSessionsToLocalStorage(); // NEW: Save empty session
+            return;
+        }
+// ... existing code ... */
+            dom.learnModeQuiz.classList.add('hidden');
+            dom.learnCompleteView.classList.remove('hidden');
+            saveCurrentSessionStats(); // NEW: Save session stats
             saveSessionsToLocalStorage(); // NEW: Save empty session
             return;
         }
@@ -1391,6 +926,11 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.learnFeedback.classList.add('incorrect');
             dom.learnFeedback.classList.remove('correct');
             // NEW: No timer for incorrect answers
+
+            // NEW: Track missed card
+            if (app.currentSessionStats) {
+                app.currentSessionStats.missedCards.add(app.currentLearnCard.id);
+            }
         }
         
         // Note: app.currentLearnCard is an object from the studyDeck, but it's
@@ -1420,14 +960,16 @@ document.addEventListener('DOMContentLoaded', () => {
         app.typeSessionCards = [...app.studyDeck]; // Create session list
         shuffleArray(app.typeSessionCards); // Shuffle session list
         
+        // NEW: Initialize session stats
+        app.currentSessionStats = {
+            missedCards: new Set(),
+            totalCards: app.typeSessionCards.length,
+            mode: 'type'
+        };
+        
         updateProgressBar('type'); // NEW
         renderTypeQuestion();
-        saveSessionsToLocalStorage(); // NEW: Save the new session
-    }
-
-    /**
-     * Renders the next "Type" question.
-     */
+// ... existing code ... */
     function renderTypeQuestion() {
         // NEW: Clear any pending auto-advance
         if (app.correctAnswerTimeout) {
@@ -1445,6 +987,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.typeModeQuiz.classList.add('hidden');
             dom.typeCompleteView.classList.remove('hidden');
             dom.typeProgressBarContainer.classList.add('hidden'); // NEW: Hide on complete
+            saveCurrentSessionStats(); // NEW: Save session stats
             saveSessionsToLocalStorage(); // NEW: Save empty session
             return;
         }
@@ -1546,6 +1089,11 @@ document.addEventListener('DOMContentLoaded', () => {
             app.lastTypeCard = app.typeSessionCards.shift(); // Remove and store
             app.typeSessionCards.push(app.lastTypeCard); // Move to back
 
+            // NEW: Track missed card
+            if (app.currentSessionStats) {
+                app.currentSessionStats.missedCards.add(app.lastTypeCard.id);
+            }
+
             // NEW: No timer for incorrect answers
         }
 
@@ -1566,9 +1114,15 @@ document.addEventListener('DOMContentLoaded', () => {
         app.typeSessionCards.push(app.lastTypeCard);
 
         // 2. Mark the card as incorrect (resets score)
+// ... existing code ... */
         updateCardProgress(app.lastTypeCard, false);
         saveProgressToLocalStorage();
         saveSessionsToLocalStorage(); // NEW: Save session progress
+
+        // NEW: Track missed card
+        if (app.currentSessionStats) {
+            app.currentSessionStats.missedCards.add(app.lastTypeCard.id);
+        }
 
         // 3. Clear the cache and hide the button
         app.lastTypeCard = null;
@@ -1594,52 +1148,13 @@ document.addEventListener('DOMContentLoaded', () => {
             app.typeSessionCards.splice(cardIndex, 1);
         }
         
-        saveSessionsToLocalStorage(); // NEW: Save session progress
-
-        // 3. Clear cache and hide button
-        app.lastTypeCard = null;
-        dom.typeOverrideCorrectButton.classList.add('hidden');
-
-        // 4. Give feedback
-        showToast("Great! Marking that as correct.");
-    }
-
-    // --- NEW: MATCH MODE ---
-
-    /**
-     * MODIFIED: Starts the entire Match mode session by showing the start screen.
-     */
-    function startMatchMode() {
-        if (app.studyDeck.length < 2) return;
-        
-        // Hide game and complete, show start screen
-        dom.matchCompleteView.classList.add('hidden');
-        dom.matchModeGame.classList.add('hidden');
-        dom.matchStartScreen.classList.remove('hidden');
-
-        // Reset session cards
-        app.matchSessionCards = [...app.studyDeck]; // Create session list
-        shuffleArray(app.matchSessionCards); // Shuffle session list
-
-        // Update best time display
-        updateBestTimeDisplay();
-    }
-
-    /**
-     * NEW: Updates the best time display.
-     */
-    function updateBestTimeDisplay() {
-        if (app.matchBestTime === Infinity) {
-            dom.matchBestTime.textContent = 'Best: --.-s';
-        } else {
-            dom.matchBestTime.textContent = `Best: ${app.matchBestTime.toFixed(1)}s`;
+        // NEW: If this was a missed card, remove it from the set
+        if (app.currentSessionStats) {
+            app.currentSessionStats.missedCards.delete(app.lastTypeCard.id);
         }
-    }
-
-
-    /**
-     * MODIFIED: Starts a new round of the Match game (called by Start button).
-     */
+        
+        saveSessionsToLocalStorage(); // NEW: Save session progress
+// ... existing code ... */
     function startMatchRound() {
         // Hide start screen, show game
         dom.matchStartScreen.classList.add('hidden');
@@ -1647,19 +1162,23 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.matchCompleteView.classList.add('hidden');
 
         // Clear any existing timer
-        if (app.matchTimerInterval) {
-            clearInterval(app.matchTimerInterval);
-            app.matchTimerInterval = null;
-        }
-
-        // Reset selections
-        app.selectedTerm = null;
+// ... existing code ... */
         app.selectedDef = null;
         app.isCheckingMatch = false;
 
         // Get cards for this round
         const roundCards = app.matchSessionCards.slice(0, MATCH_ROUND_SIZE);
         app.matchItemsLeft = roundCards.length;
+
+        // NEW: Initialize session stats *only for the first round*
+        if (app.matchSessionCards.length === app.studyDeck.length) {
+            app.currentSessionStats = {
+                missedCards: new Set(),
+                totalCards: app.studyDeck.length, // Track total deck
+                mode: 'match',
+                startTime: Date.now() // Track start time for final score
+            };
+        }
         
         // Check if there are enough cards to play
         if (app.matchItemsLeft < 2) {
@@ -1775,19 +1294,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (finalTime < app.matchBestTime) {
                     app.matchBestTime = finalTime;
                     saveBestTimeToLocalStorage();
-                    updateBestTimeDisplay();
-                    showToast(`New best time: ${finalTime.toFixed(1)}s!`);
-                }
-                
-                // MODIFIED: Check if there are more cards for another round
-                if (app.matchSessionCards.length >= 2) {
-                    // More cards, start next round
-                    setTimeout(startMatchRound, 1000); 
+// ... existing code ... */
                 } else {
                     // No more cards, show final complete screen
                     setTimeout(() => {
                         dom.matchModeGame.classList.add('hidden');
                         dom.matchCompleteView.classList.remove('hidden');
+                        app.currentSessionStats.endTime = Date.now(); // NEW: Mark end time
+                        saveCurrentSessionStats(); // NEW: Save session
                     }, 1000); // Wait 1 sec
                 }
             }
@@ -1805,6 +1319,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateCardProgress(card, false);
                 // Move card to the end of the session
                 app.matchSessionCards.push(app.matchSessionCards.splice(cardIndex, 1)[0]);
+                
+                // NEW: Track missed card
+                if (app.currentSessionStats) {
+                    app.currentSessionStats.missedCards.add(card.id);
+                }
             }
             
             saveProgressToLocalStorage();
@@ -1824,547 +1343,181 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- END MATCH MODE ---
 
+    // --- NEW: PROGRESS VIEW ---
+
+    /**
+     * Renders all data for the Progress tab.
+     */
+    function renderProgressView() {
+        if (app.currentDeck.cards.length === 0) {
+            // Handle case where user switches to progress on an empty deck
+            // This is unlikely but good to guard against.
+            return;
+        }
+
+        // 1. Calculate and Render Mastery
+        const masteryStats = { mastered: 0, learning: 0, notLearned: 0 };
+        for (const card of app.currentDeck.cards) {
+            if (card.score >= 3) {
+                masteryStats.mastered++;
+            } else if (card.score > 0) {
+                masteryStats.learning++;
+            } else {
+                masteryStats.notLearned++;
+            }
+        }
+        dom.masteryMastered.textContent = masteryStats.mastered;
+        dom.masteryLearning.textContent = masteryStats.learning;
+        dom.masteryNotLearned.textContent = masteryStats.notLearned;
+
+        // 2. Load History
+        const allHistory = loadHistoryFromLocalStorage();
+        const deckHistory = allHistory[app.currentDeckHash] || [];
+
+        // 3. Render Latest Session & Pie Chart
+        if (deckHistory.length > 0) {
+            const latestSession = deckHistory[0];
+            renderProgressPieChart(latestSession);
+            
+            // Render text stats
+            dom.latestSessionStats.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-value">${latestSession.mode.charAt(0).toUpperCase() + latestSession.mode.slice(1)}</span>
+                    <div class="stat-label">Last Mode</div>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">${latestSession.firstTry} / ${latestSession.totalCards}</span>
+                    <div class="stat-label">First Try</div>
+                </div>
+                ${latestSession.timeTaken ? `
+                <div class="stat-item">
+                    <span class="stat-value">${(latestSession.timeTaken / 1000).toFixed(1)}s</span>
+                    <div class="stat-label">Time Taken</div>
+                </div>` : ''}
+            `;
+            
+            dom.progressNoSession.classList.add('hidden');
+            dom.progressSessionContainer.classList.remove('hidden');
+        } else {
+            dom.progressNoSession.classList.remove('hidden');
+            dom.progressSessionContainer.classList.add('hidden');
+        }
+
+        // 4. Render Session History List
+        if (deckHistory.length > 0) {
+            dom.progressHistoryList.innerHTML = deckHistory.map(session => {
+                const date = new Date(session.timestamp).toLocaleString(undefined, {
+                    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+                });
+                return `
+                    <li class="history-list-item">
+                        <div class="info">
+                            <div class="mode">${session.mode}</div>
+                            <div class="date">${date}</div>
+                        </div>
+                        <div class="score">
+                            <span class="correct">${session.firstTry}</span>
+                            <span class="total"> / ${session.totalCards}</span>
+                        </div>
+                    </li>
+                `;
+            }).join('');
+            dom.progressNoHistory.classList.add('hidden');
+            dom.progressHistoryList.classList.remove('hidden');
+        } else {
+            dom.progressNoHistory.classList.remove('hidden');
+            dom.progressHistoryList.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Renders the pie chart for the latest session.
+     * @param {object} session - The session object to render.
+     */
+    function renderProgressPieChart(session) {
+        if (app.progressChartInstance) {
+            app.progressChartInstance.destroy();
+        }
+
+        // Get theme-aware colors
+        const computedStyles = getComputedStyle(document.body);
+        const colorCorrect = computedStyles.getPropertyValue('--color-mastered').trim() || '#38c172';
+        const colorLearning = computedStyles.getPropertyValue('--color-learning').trim() || '#ffcd1f';
+        const colorText = computedStyles.getPropertyValue('--color-text-secondary').trim() || '#a0aec0';
+
+        app.progressChartInstance = new Chart(dom.progressPieChart, {
+            type: 'doughnut',
+            data: {
+                labels: ['First Try', 'Took Longer'],
+                datasets: [{
+                    label: 'Session Stats',
+                    data: [session.firstTry, session.tookLonger],
+                    backgroundColor: [
+                        colorCorrect,
+                        colorLearning
+                    ],
+                    borderColor: computedStyles.getPropertyValue('--color-card-bg').trim(),
+                    borderWidth: 4,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: colorText,
+                            font: {
+                                weight: '600'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        titleFont: { weight: 'bold' },
+                        bodyFont: { weight: '600' },
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+    }
+    
+    /**
+     * Calculates and saves the stats for the just-completed session.
+     */
+    function saveCurrentSessionStats() {
+        if (!app.currentSessionStats) return; // No session active
+
+        const missedCount = app.currentSessionStats.missedCards.size;
+        const firstTryCount = Math.max(0, app.currentSessionStats.totalCards - missedCount);
+
+        const session = {
+            timestamp: Date.now(),
+            mode: app.currentSessionStats.mode,
+            firstTry: firstTryCount,
+            tookLonger: missedCount,
+            totalCards: app.currentSessionStats.totalCards
+        };
+
+        // Add match-specific time
+        if (session.mode === 'match' && app.currentSessionStats.endTime) {
+            session.timeTaken = app.currentSessionStats.endTime - app.currentSessionStats.startTime;
+        }
+
+        saveSessionToHistory(session);
+
+        // Clear the stats for the next run
+        app.currentSessionStats = null;
+    }
+
+    // --- END PROGRESS VIEW ---
 
     // --- CREATE DECK ---
 
     /**
-     * NEW: Renders the create editor, populating title and cards.
-     */
-    function renderCreateEditor() {
-        dom.deckTitleInput.value = app.currentDeck.title || ''; // Handle empty title
-        dom.cardEditorList.innerHTML = ''; // Clear list
-
-        if (app.currentDeck.cards.length > 0) {
-            app.currentDeck.cards.forEach(card => {
-                createNewCardRow(card.term, card.definition);
-            });
-        } else {
-            // Start with 3 empty rows
-            createNewCardRow();
-            createNewCardRow();
-            createNewCardRow();
-        }
-        updateCardRowNumbers();
-        // Ensure textareas are sized correctly on load
-        dom.cardEditorList.querySelectorAll('textarea').forEach(autoResizeTextarea);
-    }
-
-    /**
-     * NEW: Creates a new card row in the manual editor.
-     */
-    function createNewCardRow(term = '', definition = '') {
-        const row = document.createElement('div');
-        row.className = 'card-editor-row';
-        row.setAttribute('draggable', 'true'); // Make it draggable
-
-        const rowNumber = dom.cardEditorList.children.length + 1;
-
-        row.innerHTML = `
-            <div class="drag-handle" title="Drag to reorder">
-                <svg fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M7 2a1 1 0 00-1 1v1a1 1 0 001 1h1a1 1 0 001-1V3a1 1 0 00-1-1H7zM7 6a1 1 0 00-1 1v1a1 1 0 001 1h1a1 1 0 001-1V7a1 1 0 00-1-1H7zM7 10a1 1 0 00-1 1v1a1 1 0 001 1h1a1 1 0 001-1v-1a1 1 0 00-1-1H7zM7 14a1 1 0 00-1 1v1a1 1 0 001 1h1a1 1 0 001-1v-1a1 1 0 00-1-1H7zM11 2a1 1 0 00-1 1v1a1 1 0 001 1h1a1 1 0 001-1V3a1 1 0 00-1-1h-1zM11 6a1 1 0 00-1 1v1a1 1 0 001 1h1a1 1 0 001-1V7a1 1 0 00-1-1h-1zM11 10a1 1 0 00-1 1v1a1 1 0 001 1h1a1 1 0 001-1v-1a1 1 0 00-1-1h-1zM11 14a1 1 0 00-1 1v1a1 1 0 001 1h1a1 1 0 001-1v-1a1 1 0 00-1-1h-1z"></path></svg>
-            </div>
-            <span class="card-row-number">${rowNumber}</span>
-            <div class="card-input-wrapper">
-                <textarea class="term-input" rows="1" placeholder="Enter term">${term}</textarea>
-                <label class="create-label">TERM</label>
-            </div>
-            <div class="card-input-wrapper">
-                <textarea class="def-input" rows="1" placeholder="Enter definition">${definition}</textarea>
-                <label class="create-label">DEFINITION</label>
-            </div>
-            <button class="delete-card-button" title="Delete card">
-                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
-        `;
-        dom.cardEditorList.appendChild(row);
-        
-        // Auto-resize the new textareas in case they have content
-        const textareas = row.querySelectorAll('textarea');
-        textareas.forEach(autoResizeTextarea);
-    }
-
-    /**
-     * NEW: Updates the numbers for all card rows.
-     */
-    function updateCardRowNumbers() {
-        const rows = dom.cardEditorList.querySelectorAll('.card-editor-row');
-        rows.forEach((row, index) => {
-            row.querySelector('.card-row-number').textContent = index + 1;
-        });
-    }
-
-    /**
-     * NEW: Auto-resizes a textarea to fit its content.
-     */
+// ... existing code ... */
     function autoResizeTextarea(textarea) {
         textarea.style.height = 'auto'; // Reset height
-        textarea.style.height = `${textarea.scrollHeight}px`; // Set to content height
-    }
-
-    /**
-     * NEW: Sets the create mode (manual or paste).
-     */
-    function setCreateMode(mode) {
-        app.createMode = mode;
-        if (mode === 'manual') {
-            dom.manualInputSection.classList.remove('hidden');
-            dom.pasteInputSection.classList.add('hidden');
-            dom.toggleManualButton.classList.add('active');
-            dom.togglePasteButton.classList.remove('active');
-        } else {
-            dom.manualInputSection.classList.add('hidden');
-            dom.pasteInputSection.classList.remove('hidden');
-            dom.toggleManualButton.classList.remove('active');
-            dom.togglePasteButton.classList.add('active');
-        }
-    }
-
-    /**
-     * MODIFIED: Parses deck from either manual or paste mode.
-     * Does NOT reload the page anymore.
-     * @returns {boolean} - True on success, false on failure.
-     */
-    function parseAndLoadDeck() {
-        const title = dom.deckTitleInput.value.trim() || 'Untitled Deck';
-        let newCards = [];
-        let errorCount = 0;
-
-        if (app.createMode === 'manual') {
-            const rows = dom.cardEditorList.querySelectorAll('.card-editor-row');
-            rows.forEach(row => {
-                const term = row.querySelector('.term-input').value.trim();
-                const definition = row.querySelector('.def-input').value.trim();
-                if (term && definition) {
-                    newCards.push({ term, definition });
-                } else if (term || definition) {
-                    // Only count as error if one is filled but not the other
-                    errorCount++;
-                }
-            });
-        } else {
-            // Paste mode logic
-            const input = dom.deckInputArea.value.trim();
-            if (input) {
-                const lines = input.split('\n');
-                for (const line of lines) {
-                    // MODIFIED: Use comma as separator
-                    const parts = line.split(',');
-                    if (parts.length >= 2) {
-                        const term = parts[0].trim();
-                        // Join all other parts as the definition
-                        const definition = parts.slice(1).join(',').trim(); 
-                        if (term && definition) {
-                            newCards.push({ term, definition });
-                        } else {
-                            errorCount++;
-                        }
-                    } else if (line.trim() !== '') {
-                        errorCount++;
-                    }
-                }
-            }
-        }
-
-        if (newCards.length === 0) {
-            // MODIFIED: Don't use alert
-            showToast("Could not find any valid cards. Please check your inputs.");
-            return false; // NEW: Return failure
-        }
-
-        if (errorCount > 0) {
-            // MODIFIED: Don't use alert
-            showToast(`Loaded ${newCards.length} cards, but ${errorCount} lines/rows were ignored.`);
-        }
-
-        // NEW: Add default settings to the new deck
-        const newDeck = {
-            title: title,
-            cards: newCards,
-            settings: {
-                shuffle: false,
-                termFirst: true
-            }
-        };
-
-        try {
-            const jsonString = JSON.stringify(newDeck);
-            // MODIFICATION: Use new URL-safe encode function
-            const base64String = base64UrlEncode(jsonString);
-            const newHash = `#${base64String}`;
-            
-            // --- MODIFICATION: Do not reload ---
-            history.replaceState(null, '', newHash); // Use replaceState to not clog history
-            
-            app.isCreateDeckDirty = false;
-            loadDeckFromURL(); // Reloads app.currentDeck from new hash
-            updateDocumentTitle();
-            
-            // Update UI elements that init() would have
-            dom.settingsButton.classList.remove('hidden');
-            dom.shareDeckButton.classList.remove('hidden');
-            dom.headerTitle.textContent = app.currentDeck.title;
-            
-            showToast("Deck created successfully!");
-            return true; // NEW: Return success
-            // --- END MODIFICATION ---
-
-        } catch (error) {
-            console.error("Error creating deck hash:", error);
-            // MODIFICATION: Updated error message to be more accurate
-            showToast("An error occurred while creating the deck. Please check your text for errors.");
-            return false; // NEW: Return failure
-        }
-    }
-
-    // --- SHARE DECK ---
-
-    /**
-     * NEW: Copies all terms and definitions to the clipboard in text format.
-     */
-    function copyDeckTerms() {
-        if (app.currentDeck.cards.length === 0) {
-            showToast("Cannot copy an empty deck!");
-            return;
-        }
-
-        try {
-            const textToCopy = app.currentDeck.cards.map(card => {
-                // Clean up terms/definitions to remove newlines that would break the format
-                const term = card.term.replace(/\n/g, ' ');
-                const definition = card.definition.replace(/\n/g, ' ');
-                return `${term},${definition}`; // The format is term,definition
-            }).join('\n');
-
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(textToCopy).then(() => {
-                    showToast("Deck terms copied to clipboard!");
-                }).catch(err => {
-                    console.error("Failed to copy to clipboard:", err);
-                    fallbackCopyTextToClipboard(textToCopy); // Use existing fallback
-                });
-            } else {
-                fallbackCopyTextToClipboard(textToCopy); // Use existing fallback
-            }
-
-        } catch (error) {
-            console.error("Error generating text for copy:", error);
-            showToast("Error copying deck terms.");
-        }
-    }
-
-    function shareDeck() {
-        // MODIFIED: Check cards array length
-        if (app.currentDeck.cards.length === 0) {
-            showToast("Cannot share an empty deck!");
-            return;
-        }
-
-        try {
-            // MODIFIED: Create base deck from app.currentDeck, including settings
-            const baseDeck = {
-                title: app.currentDeck.title,
-                cards: app.currentDeck.cards.map(({ term, definition }) => ({ term, definition })),
-                settings: app.currentDeck.settings
-            };
-            const jsonString = JSON.stringify(baseDeck);
-            // MODIFICATION: Use new URL-safe encode function
-            const base64String = base64UrlEncode(jsonString);
-            const url = `${window.location.origin}${window.location.pathname}#${base64String}`;
-
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(url).then(() => {
-                    showToast("Share link copied to clipboard!");
-                }).catch(err => {
-                    console.error("Failed to copy to clipboard:", err);
-                    fallbackCopyTextToClipboard(url);
-                });
-            } else {
-                fallbackCopyTextToClipboard(url);
-            }
-
-        } catch (error) {
-            console.error("Error generating share link:", error);
-            showToast("Error generating share link.");
-        }
-    }
-
-    function fallbackCopyTextToClipboard(text) {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.top = "0";
-        textArea.style.left = "0";
-        textArea.style.position = "fixed";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-            const successful = document.execCommand('copy');
-            if (successful) {
-                showToast("Share link copied to clipboard!");
-            } else {
-                showToast("Could not copy link.");
-            }
-        } catch (err) {
-            showToast("Could not copy link.");
-        }
-        document.body.removeChild(textArea);
-    }
-
-    function showToast(message) {
-        if (app.toastTimeout) {
-            clearTimeout(app.toastTimeout);
-        }
-        dom.toastNotification.textContent = message;
-        dom.toastNotification.classList.add('show');
-        app.toastTimeout = setTimeout(() => {
-            dom.toastNotification.classList.remove('show');
-            app.toastTimeout = null; 
-        }, 3000);
-    }
-
-    // --- NEW: UTILITY FUNCTIONS ---
-
-    /**
-     * *** NEW *** Encodes a string into a URL-safe Base64 format.
-     * @param {string} str - The raw string to encode (e.g., JSON).
-     * @returns {string} - The URL-safe Base64 string.
-     */
-    function base64UrlEncode(str) {
-        // 1. Convert string to UTF-8 bytes
-        const utf8Bytes = new TextEncoder().encode(str);
-        // 2. Convert bytes to a binary string (a string where each char code is 0-255)
-        const binaryString = String.fromCharCode.apply(null, utf8Bytes);
-        // 3. Encode binary string to Base64
-        const base64String = btoa(binaryString);
-        // 4. Make it URL-safe
-        return base64String
-            .replace(/\+/g, '-') // Replace + with -
-            .replace(/\//g, '_') // Replace / with _
-            .replace(/=+$/, ''); // Remove trailing padding
-    }
-
-    /**
-     * *** NEW *** Decodes a URL-safe Base64 string back to the original string.
-     * @param {string} str - The URL-safe Base64 string.
-     * @returns {string} - The original, decoded string.
-     */
-    function base64UrlDecode(str) {
-        // 1. Add back URL-unsafe characters and padding
-        str = str.replace(/-/g, '+') // Replace - with +
-                 .replace(/_/g, '/'); // Replace _ with /
-        const padding = str.length % 4;
-        if (padding) {
-            str += '===='.slice(padding);
-        }
-        
-        // 2. Decode from Base64 to binary string
-        const binaryString = atob(str);
-        
-        // 3. Convert binary string to byte array
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        // 4. Decode UTF-8 bytes back to string
-        return new TextDecoder().decode(bytes);
-    }
-
-    /**
-     * *** NEW *** Sets the document's title (browser tab)
-     */
-    function updateDocumentTitle() {
-        if (app.currentDeck.title && app.currentDeck.title.trim() !== '') {
-            document.title = `${app.currentDeck.title} | totallynotquizlet`;
-        } else {
-            document.title = 'totallynotquizlet';
-        }
-    }
-
-    /**
-     * NEW: Updates the progress bar for Learn or Type mode.
-     * @param {string} mode - 'learn' or 'type'
-     */
-    function updateProgressBar(mode) {
-        const total = app.studyDeck.length;
-        if (total === 0) return; // Avoid divide by zero
-
-        let remaining, progressBar;
-
-        if (mode === 'learn') {
-            remaining = app.learnSessionCards.length;
-            progressBar = dom.learnProgressBar;
-        } else if (mode === 'type') {
-            remaining = app.typeSessionCards.length;
-            progressBar = dom.typeProgressBar;
-        } else {
-            return; // Not a valid mode for progress
-        }
-
-        const completed = total - remaining;
-        const percentage = (completed / total) * 100;
-        
-        progressBar.style.width = `${percentage}%`;
-    }
-    
-    /**
-     * Shuffles an array in place. (Fisher-Yates shuffle)
-     * @param {Array} array The array to shuffle.
-     */
-    function shuffleArray(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
-        }
-    }
-
-    /**
-     * NEW: Calculates Levenshtein distance between two strings.
-     * @param {string} a - The first string.
-     * @param {string} b - The second string.
-     * @returns {number} The distance.
-     */
-    function levenshteinDistance(a, b) {
-        if (a.length === 0) return b.length;
-        if (b.length === 0) return a.length;
-
-        const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
-
-        for (let i = 0; i <= a.length; i++) {
-            matrix[0][i] = i;
-        }
-        for (let j = 0; j <= b.length; j++) {
-            matrix[j][0] = j;
-        }
-
-        for (let j = 1; j <= b.length; j++) {
-            for (let i = 1; i <= a.length; i++) {
-                const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-                matrix[j][i] = Math.min(
-                    matrix[j - 1][i] + 1,     // Deletion
-                    matrix[j][i - 1] + 1,     // Insertion
-                    matrix[j - 1][i - 1] + cost // Substitution
-                );
-            }
-        }
-
-        return matrix[b.length][a.length];
-    }
-
-    /**
-     * NEW: Speaks the given text using the browser's TTS engine.
-     * @param {string} text - The text to speak.
-     */
-    function speakText(text) {
-        if ('speechSynthesis' in window) {
-            // Cancel any ongoing speech to prevent overlap
-            window.speechSynthesis.cancel();
-            
-            const utterance = new SpeechSynthesisUtterance(text);
-            
-            // You can customize language, pitch, and rate here if needed
-            // utterance.lang = 'en-US'; 
-            // utterance.pitch = 1;
-            // utterance.rate = 1;
-            
-            window.speechSynthesis.speak(utterance);
-        } else {
-            console.error("Text-to-speech not supported in this browser.");
-            showToast("Text-to-speech is not supported in this browser.");
-        }
-    }
-    
-    /**
-     * NEW: Updates the URL hash without reloading the page.
-     * Used for saving settings.
-     */
-    function updateURLHash() {
-        try {
-            // Create base deck from app.currentDeck, including settings
-            const baseDeck = {
-                title: app.currentDeck.title,
-                cards: app.currentDeck.cards.map(({ term, definition }) => ({ term, definition })),
-                settings: app.currentDeck.settings
-            };
-            const jsonString = JSON.stringify(baseDeck);
-            // MODIFICATION: Use new URL-safe encode function
-            const base64String = base64UrlEncode(jsonString);
-            
-            // NEW: Update the stored hash as well
-            const newHash = `#${base64String}`;
-            app.currentDeckHash = newHash.substring(1);
-
-            // Use history.replaceState to avoid adding to browser history
-            history.replaceState(null, '', newHash);
-
-        } catch (error) {
-            console.error("Error updating hash:", error);
-            showToast("Error saving settings.");
-        }
-    }
-
-
-    // --- START THE APP ---
-    init();
-
-    // --- NEW: Drag and Drop Handlers ---
-
-    function handleDragStart(e) {
-        if (!e.target.classList.contains('card-editor-row')) return;
-        app.draggedItem = e.target;
-        // Set data (optional, but good practice)
-        e.dataTransfer.setData('text/plain', null); 
-        // Add styling class after a short delay
-        setTimeout(() => {
-            if (app.draggedItem) {
-                app.draggedItem.classList.add('dragging');
-            }
-        }, 0);
-    }
-
-    function handleDragOver(e) {
-        e.preventDefault(); // Necessary to allow dropping
-        const container = dom.cardEditorList;
-        const afterElement = getDragAfterElement(container, e.clientY);
-        
-        if (afterElement == null) {
-            if (app.draggedItem) {
-                container.appendChild(app.draggedItem);
-            }
-        } else {
-            if (app.draggedItem) {
-                container.insertBefore(app.draggedItem, afterElement);
-            }
-        }
-    }
-
-    function handleDrop(e) {
-        e.preventDefault();
-        // Logic is handled in dragover, just update numbers
-        updateCardRowNumbers();
-        app.isCreateDeckDirty = true; // NEW: Dragging is a change
-    }
-
-
-    function handleDragEnd() {
-        if (app.draggedItem) {
-            app.draggedItem.classList.remove('dragging');
-        }
-        app.draggedItem = null;
-    }
-
-    function getDragAfterElement(container, y) {
-        const draggableElements = [...container.querySelectorAll('.card-editor-row:not(.dragging)')];
-
-        return draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
-            }
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
-    }
-
-});
+// ... existing code ... */
