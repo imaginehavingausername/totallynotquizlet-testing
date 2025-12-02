@@ -780,8 +780,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.matchGameArea.addEventListener('click', handleMatchClick);
         }
 
-        // NEW: Clear All Button Listeners - MODIFIED to check for content first
-        dom.clearCreateButton.addEventListener('click', handleClearRequest);
+        // NEW: Clear All Button Listeners
+        dom.clearCreateButton.addEventListener('click', showClearConfirmModal);
         dom.clearCancelButton.addEventListener('click', hideClearConfirmModal);
         dom.clearConfirmButton.addEventListener('click', handleClearAll);
 
@@ -968,55 +968,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- NEW: Clear Confirm Modal Functions ---
     function showClearConfirmModal() {
+        // NEW: Check if there is anything to clear
+        const hasTitle = dom.deckTitleInput.value.trim().length > 0;
+        const hasPasteContent = dom.deckInputArea.value.trim().length > 0;
+        
+        let hasRowContent = false;
+        const rows = dom.cardEditorList.querySelectorAll('.card-editor-row');
+        for (const row of rows) {
+            if (row.querySelector('.term-input').value.trim() || row.querySelector('.def-input').value.trim()) {
+                hasRowContent = true;
+                break;
+            }
+        }
+
+        if (!hasTitle && !hasPasteContent && !hasRowContent) {
+            showToast("Nothing to clear.");
+            return;
+        }
+
         dom.clearConfirmModalOverlay.classList.add('visible');
     }
 
     function hideClearConfirmModal() {
         dom.clearConfirmModalOverlay.classList.remove('visible');
     }
-    
-    // MODIFIED: Only show the clear confirmation if there is something to clear
-    function handleClearRequest() {
-        let hasContent = false;
-        
-        // 1. Check title
-        if (dom.deckTitleInput.value.trim() !== '') {
-            hasContent = true;
-        }
-        
-        // 2. Check content based on active mode
-        if (!hasContent) {
-            if (app.createMode === 'manual') {
-                // Check all textareas
-                const rows = dom.cardEditorList.querySelectorAll('.card-editor-row');
-                // Also check if rows were added/deleted (default is 3)
-                if (rows.length !== 3) {
-                    hasContent = true;
-                } else {
-                    rows.forEach(row => {
-                        const term = row.querySelector('.term-input').value.trim();
-                        const def = row.querySelector('.def-input').value.trim();
-                        if (term || def) {
-                            hasContent = true;
-                        }
-                    });
-                }
-            } else {
-                // Check paste area
-                if (dom.deckInputArea.value.trim() !== '') {
-                    hasContent = true;
-                }
-            }
-        }
-        
-        if (hasContent) {
-            showClearConfirmModal();
-        } else {
-            showToast("Nothing to clear!");
-        }
-    }
 
     function handleClearAll() {
+        // MODIFIED: Clear internal deck state so it doesn't repopulate
+        app.currentDeck.title = '';
+        app.currentDeck.cards = []; 
+        
         dom.deckTitleInput.value = '';
         dom.cardEditorList.innerHTML = '';
         dom.deckInputArea.value = '';
