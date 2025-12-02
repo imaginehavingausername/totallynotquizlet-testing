@@ -1082,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (app.studyDeck.length === 0 || app.isAnimating) return;
         app.isAnimating = true;
 
-        const animationDuration = 300; // 0.3s from CSS
+        const animationDuration = 200; // 0.2s from CSS (WAS 300)
 
         // 1. Add 'slide-out-right' animation
         dom.flashcardContainer.classList.add('slide-out-right');
@@ -1114,7 +1114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (app.studyDeck.length === 0 || app.isAnimating) return;
         app.isAnimating = true;
 
-        const animationDuration = 300; // 0.3s from CSS
+        const animationDuration = 200; // 0.2s from CSS (WAS 300)
 
         // 1. Add 'slide-out-left' animation
         dom.flashcardContainer.classList.add('slide-out-left');
