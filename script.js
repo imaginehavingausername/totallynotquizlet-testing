@@ -1076,82 +1076,68 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.cardCounter.textContent = `${app.currentCardIndex + 1} / ${app.studyDeck.length}`;
     }
 
-    // MODIFIED: Re-written to fix animation bug.
+    // MODIFIED: Re-written to use CSS slide animations.
     function showPrevCard() {
         // MODIFIED: Use studyDeck
         if (app.studyDeck.length === 0 || app.isAnimating) return;
         app.isAnimating = true;
 
-        // 1. Fade out
-        dom.flashcardContainer.style.opacity = 0;
+        const animationDuration = 300; // 0.3s from CSS
 
-        // 2. Wait for fade to finish (200ms from CSS)
+        // 1. Add 'slide-out-right' animation
+        dom.flashcardContainer.classList.add('slide-out-right');
+
+        // 2. Wait for 'out' animation to finish
         setTimeout(() => {
-            // 3. ***** START FIX V3 *****
-            // Temporarily disable ONLY transform transition
-            dom.flashcardContainer.style.transition = 'opacity 0.2s ease-in-out';
-            
-            // 4. Change content
+            // 3. Change content
             app.currentCardIndex = (app.currentCardIndex - 1 + app.studyDeck.length) % app.studyDeck.length;
             renderFlashcardContent(); // Update text
             
-            // 5. Instantly remove 'is-flipped' (so it's on the front face)
+            // 4. Reset flip state
             dom.flashcardContainer.classList.remove('is-flipped');
             
-            // 6. Force reflow 
-            void dom.flashcardContainer.offsetWidth; 
+            // 5. Remove 'out' class, add 'in' class
+            dom.flashcardContainer.classList.remove('slide-out-right');
+            dom.flashcardContainer.classList.add('slide-in-left');
 
-            // 7. Re-enable all transitions
-            dom.flashcardContainer.style.transition = ''; 
-            // ***** END FIX V3 *****
-            
-            // 8. Fade in
-            dom.flashcardContainer.style.opacity = 1;
-
-            // 9. Allow new animations
+            // 6. Wait for 'in' animation to finish
             setTimeout(() => {
+                dom.flashcardContainer.classList.remove('slide-in-left');
                 app.isAnimating = false;
-            }, 200); // Wait for fade in
-        }, 200); // Wait for fade out
+            }, animationDuration);
+        }, animationDuration);
     }
     
-    // MODIFIED: Re-written to fix animation bug.
+    // MODIFIED: Re-written to use CSS slide animations.
     function showNextCard() {
         // MODIFIED: Use studyDeck
         if (app.studyDeck.length === 0 || app.isAnimating) return;
         app.isAnimating = true;
 
-        // 1. Fade out
-        dom.flashcardContainer.style.opacity = 0;
+        const animationDuration = 300; // 0.3s from CSS
 
-        // 2. Wait for fade to finish (200ms from CSS)
+        // 1. Add 'slide-out-left' animation
+        dom.flashcardContainer.classList.add('slide-out-left');
+
+        // 2. Wait for 'out' animation to finish
         setTimeout(() => {
-            // 3. ***** START FIX V3 *****
-            // Temporarily disable ONLY transform transition
-            dom.flashcardContainer.style.transition = 'opacity 0.2s ease-in-out';
-            
-            // 4. Change content
+            // 3. Change content
             app.currentCardIndex = (app.currentCardIndex + 1) % app.studyDeck.length;
             renderFlashcardContent(); // Update text
             
-            // 5. Instantly remove 'is-flipped' (so it's on the front face)
+            // 4. Reset flip state
             dom.flashcardContainer.classList.remove('is-flipped');
             
-            // 6. Force reflow 
-            void dom.flashcardContainer.offsetWidth; 
+            // 5. Remove 'out' class, add 'in' class
+            dom.flashcardContainer.classList.remove('slide-out-left');
+            dom.flashcardContainer.classList.add('slide-in-right');
 
-            // 7. Re-enable all transitions
-            dom.flashcardContainer.style.transition = '';
-            // ***** END FIX V3 *****
-            
-            // 8. Fade in
-            dom.flashcardContainer.style.opacity = 1;
-
-            // 9. Allow new animations
+            // 6. Wait for 'in' animation to finish
             setTimeout(() => {
+                dom.flashcardContainer.classList.remove('slide-in-right');
                 app.isAnimating = false;
-            }, 200); // Wait for fade in
-        }, 200); // Wait for fade out
+            }, animationDuration);
+        }, animationDuration);
     }
 
     // --- NEW: Swipe Navigation Handlers ---
